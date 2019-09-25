@@ -17,6 +17,7 @@ public:
 
     int StartMonitor (char *processName, char *dllLoc);
     int RunProcess (char *exePath, char *args, char *dllLoc);
+    int RunOnProcessWithId (int pid, char *ddlLoc);
     int ReleaseResources ();
     void Callback (int pid, char *pName);
     int GetPid ();
@@ -27,8 +28,10 @@ private:
     volatile HANDLE createEvent;
     volatile HANDLE stopEvent;
     volatile HANDLE mapFile;
+    volatile HANDLE mapImageFile;
     volatile char processName[1024];
     volatile char dllLoc[1024];
+    volatile char exePath[1024];
     volatile int pid;
     volatile HANDLE processHandle;
 

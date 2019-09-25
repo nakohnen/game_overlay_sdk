@@ -18,7 +18,8 @@
 
 #pragma comment(lib, "wbemuuid.lib")
 
-#define MMAPSIZE 4096
+#define MMAPSIZE 4096 ;
+#define MMAPSIZE_SCREENSHOT 1048576
 
 std::shared_ptr<spdlog::logger> Monitor::monitorLogger = spdlog::stderr_logger_mt ("monitorLogger");
 
@@ -28,6 +29,7 @@ Monitor::Monitor ()
     this->createEvent = NULL;
     this->stopEvent = NULL;
     this->mapFile = NULL;
+    this->mapImageFile = NULL;
     this->pid = 0;
     this->processHandle = NULL;
 }
@@ -52,6 +54,7 @@ void Monitor::SetLogLevel (int level)
 int Monitor::RunProcess (char *exePath, char *args, char *dllLoc)
 {
     strcpy ((char *)this->dllLoc, dllLoc);
+    strcpy ((char *)this->exePath, exePath);
     int res = CreateDesktopProcess (exePath, args);
     if (res != STATUS_OK)
     {
@@ -79,7 +82,7 @@ int Monitor::StartMonitor (char *processName, char *dllLoc)
 {
     strcpy ((char *)this->processName, processName);
     strcpy ((char *)this->dllLoc, dllLoc);
-    Monitor::monitorLogger->trace ("start monitorring");
+    Monitor::monitorLogger->trace ("start monitoring");
     int res = CreateFileMap ();
     if (res != STATUS_OK)
     {
@@ -102,18 +105,70 @@ int Monitor::StartMonitor (char *processName, char *dllLoc)
     return STATUS_OK;
 }
 
-int Monitor::CreateFileMap ()
+int Monitor::RunOnProcessWithId(int pid, char *ddlLoc)
 {
-    this->mapFile = CreateFileMapping (
-        INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, MMAPSIZE, TEXT ("Global\\GameOverlayMap"));
-    if (this->mapFile == NULL)
+    strcpy ((char *)this->dllLoc, dllLoc);
+    this->pid = pid ;
+    Monitor::monitorLogger->trace ("searching process");
+
+    if (res != STATUS_OK)
     {
-        Monitor::monitorLogger->error ("failed to create maped file Error {}", GetLastError ());
+        return res;
+    }
+    res = CreateFileMap (pid);
+    if (res != STATUS_OK)
+    {
+        return res;
+    }
+    int architecture = GetArchitecture (pid);
+    DLLInjection dllInjection (this->pid, architecture, dllLoc);
+    bool is_injected = dllInjection.InjectDLL ();
+    ResumeThread (this->thread);
+    if (!is_injected)
+    {
+        Monitor::monitorLogger->error ("Failed to inject dll");
+        return GENERAL_ERROR;
+    }
+    this->processHandle = dllInjection.GetTargetProcessHandle ();
+    return STATUS_OK;
+}
+
+int Monitor::CreateFileMap (int pid)
+{
+    char fileMapName[64];
+    if (pid > 0){
+        sprintf(fileMapName, "Global\\GameOverlayMap_%d", pid);
+    } else {
+        fileMapName = "Global\\GameOverlayMap";
+    }
+
+    this->mapFile = CreateFileMapping (
+        INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, MMAPSIZE, TEXT (fileMapName));
+
+    char fileMapName[64];
+    if (pid > 0){
+        sprintf(fileMapName, "Global\\GameOverlayImageMap_%d", pid);
+    } else {
+        fileMapName = "Global\\GameOverlayImageMap";
+    }
+    this->mapImageFile = CreateFileMapping (
+        INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, MMAPSIZE_SCREENSHOT, TEXT (fileMapName));
+
+    if (this->mapFile == NULL or this->mapImageFile == NULL)
+    {
+        Monitor::monitorLogger->error ("failed to create mmapped file : Error {}", GetLastError ());
         return GENERAL_ERROR;
     }
     SetSecurityInfo (this->mapFile, SE_KERNEL_OBJECT,
         DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION, NULL, NULL, NULL, NULL);
+
+    SetSecurityInfo (this->mapImageFile, SE_KERNEL_OBJECT,
+        DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION, NULL, NULL, NULL, NULL);
     return STATUS_OK;
+}
+
+int Monitor::CreateFileMap (){
+    return this->CreateFileMap(0);
 }
 
 int Monitor::ReleaseResources ()
@@ -177,12 +232,12 @@ int Monitor::SendMessageToOverlay (char *message)
 {
     if ((this->mapFile == NULL) || (this->pid == 0))
     {
-        Monitor::monitorLogger->error ("No process to draw overlay");
+        Monitor::monitorLogger->error ("No process to send message to");
         return TARGET_PROCESS_IS_NOT_CREATED_ERROR;
     }
     if (!CheckTargetProcessAlive ())
     {
-        Monitor::monitorLogger->error ("target process was terminated, dont send message");
+        Monitor::monitorLogger->error ("target process was terminated, don't send message");
         this->pid = 0;
         this->processHandle = NULL;
         return TARGET_PROCESS_WAS_TERMINATED_ERROR;
