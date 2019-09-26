@@ -27,6 +27,11 @@
 #include "Utility/ProcessHelper.h"
 #include "Utility/StringUtils.h"
 
+#include <processthreadsapi.h>
+#include <string>
+
+#define MMAPSIZE 4096
+#define MMAPSIZE_SCREENSHOT 1048576
 
 namespace GameOverlay
 {
@@ -62,21 +67,81 @@ namespace GameOverlay
     void OverlayThread::ThreadProc ()
     {
         RecordingState::GetInstance ().Start ();
-        HANDLE mapFile =
-            OpenFileMapping (FILE_MAP_ALL_ACCESS, FALSE, TEXT ("Global\\GameOverlayMap"));
-        if (mapFile == NULL)
-        {
-            g_messageLog.LogError ("OverlayThread", "Failed to open file mapping", GetLastError ());
+
+        int pid = GetCurrentProcessId();
+
+        std::string fileMapName = std::string();
+
+        fileMapName = "Global\\GameOverlayMap";
+        if (pid > 0){
+            fileMapName.append("_") ;
+            fileMapName.append(std::to_string(pid)) ;
         }
-        g_messageLog.LogInfo ("OverlayThread", "Opened mapped file");
+
+        std::wstring stemp = std::wstring(fileMapName.begin(), fileMapName.end());
+        LPCWSTR sw = stemp.c_str();
+
+        HANDLE mapFile =
+            OpenFileMapping (FILE_MAP_ALL_ACCESS, FALSE, sw);
+
+        fileMapName = "Global\\GameOverlayImageMap";
+        if (pid > 0){
+            fileMapName.append("_") ;
+            fileMapName.append(std::to_string(pid)) ;
+        }
+
+        stemp = std::wstring(fileMapName.begin(), fileMapName.end());
+        sw = stemp.c_str();
+
+        HANDLE mapImageFile =
+            OpenFileMapping (FILE_MAP_ALL_ACCESS, FALSE, sw);
+
+        if ((mapFile == NULL) || (mapImageFile == NULL))
+        {
+            g_messageLog.LogError ("OverlayThread", "Failed to open image file mapping", GetLastError ());
+        }
+        g_messageLog.LogInfo ("OverlayThread", "Opened mapped files");
+
+
+
+        // declaring character array
+        char fileMapName_c[64];
+        strcpy_s(fileMapName_c, fileMapName.c_str());
+
+        // Make the unique filename available for the screenshot hooks.
+        RecordingState::GetInstance ().SetScreenshotFilename( fileMapName_c);
+
+
         while (!this->quit_)
         {
-            if (mapFile)
+            if (mapFile && mapImageFile)
             {
-                char *buf = (char *)MapViewOfFile (mapFile, FILE_MAP_ALL_ACCESS, 0, 0, 4096);
+                char *buf = (char *)MapViewOfFile (mapFile, FILE_MAP_ALL_ACCESS, 0, 0, MMAPSIZE);
                 if (buf)
                 {
-                    RecordingState::GetInstance ().SetOverlayMessage (buf);
+                    // If we read screenshot in the message queue then we should do a screenshot
+                    if (strcmp(buf, "SCREENSHOT")==0){
+                        // do screenshot
+                        RecordingState::GetInstance ().SetScreenshotCommand(true);
+
+                        // Tell caller that the image is ready
+                        char message[5] = "WAIT" ;
+                        CopyMemory ((PVOID)buf, message, (strlen (message) + 1) * sizeof (char));
+
+                    // We wait until the screenshot is ready
+                    } else if (strcmp(buf, "WAIT") == 0) {
+                        if (RecordingState::GetInstance ().GetScreenshotReady())
+                            {
+                            // Tell caller that the image is ready
+                            char message[5] = "READ" ;
+                            CopyMemory ((PVOID)buf, message, (strlen (message) + 1) * sizeof (char));
+                        }
+                    }
+                    // No command is given so print the message on the screen
+                    else
+                    {
+                        RecordingState::GetInstance ().SetOverlayMessage (buf);
+                    }
                     UnmapViewOfFile (buf);
                 }
                 else

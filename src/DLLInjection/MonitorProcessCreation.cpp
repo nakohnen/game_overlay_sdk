@@ -6,7 +6,7 @@
 #include "MonitorProcessCreation.h"
 
 Monitor *last_monitor = NULL;
-std::unordered_map<int, Monitor> monitors* = {};
+std::unordered_map<int, Monitor> monitors*;
 std::mutex mutex;
 
 int SetLogLevel (int level)
@@ -20,18 +20,6 @@ int StartMonitor (char *processName, char *dllLoc)
 {
     std::lock_guard<std::mutex> lock (mutex);
     Monitor *monitor = NULL;
-    for (auto x : monitors)
-    {
-      if (strcmp(x.second->processName, processName) == 0)
-        monitor = &x.second ;
-    }
-
-
-    if (monitor)
-    {
-        Monitor::monitorLogger->error ("process monitor already running");
-        return PROCESS_MONITOR_ALREADY_RUNNING_ERROR;
-    }
     monitor = new Monitor ();
     if (!monitor)
     {
@@ -39,7 +27,8 @@ int StartMonitor (char *processName, char *dllLoc)
         return GENERAL_ERROR;
     }
 
-    monitors[monitor->GetPid()] = monitor ;
+    int monitor_pid = monitor->GetPid() ;
+    monitors.insert( std::make_pair<int, Monitor>(monitor_pid, monitor) ) ;
     last_monitor = monitor ;
 
     return monitor->StartMonitor (processName, dllLoc);
@@ -49,16 +38,6 @@ int RunProcess (char *exePath, char *args, char *dllLoc)
 {
     std::lock_guard<std::mutex> lock (mutex);
     Monitor *monitor = NULL;
-    for (auto x : monitors)
-    {
-      if (strcmp(x.second->exePath, exePath) == 0)
-        monitor = &x.second ;
-    }
-    if (monitor)
-    {
-        Monitor::monitorLogger->error ("process monitor already running");
-        return PROCESS_MONITOR_ALREADY_RUNNING_ERROR;
-    }
     monitor = new Monitor ();
     if (!monitor)
     {
@@ -66,40 +45,11 @@ int RunProcess (char *exePath, char *args, char *dllLoc)
         return GENERAL_ERROR;
     }
 
-    monitors[monitor->GetPid()] = monitor ;
+    int monitor_pid = monitor->GetPid() ;
+    monitors.insert( std::make_pair<int, Monitor>(monitor_pid, monitor) ) ;
     last_monitor = monitor ;
 
     return monitor->RunProcess (exePath, args, dllLoc);
-}
-
-
-int RunOnProcessWithId (int pid, char *dllLoc)
-{
-    std::lock_guard<std::mutex> lock (mutex);
-    Monitor *monitor = NULL;
-    for (auto x : monitors)
-    {
-      if (x.second->GetPid() == pid)
-        monitor = x.second ;
-    }
-
-    if (monitor)
-    {
-        Monitor::monitorLogger->error ("process monitor already running");
-        return PROCESS_MONITOR_ALREADY_RUNNING_ERROR;
-    }
-
-    monitor = new Monitor ();
-    if (!monitor)
-    {
-        Monitor::monitorLogger->error ("failed to create monitor");
-        return GENERAL_ERROR;
-    }
-
-    monitors[monitor->GetPid()] = monitor ;
-    last_monitor = monitor ;
-
-    return monitor->RunOnProcessWithId (pid, dllLoc);
 }
 
 int ReleaseResources ()
@@ -112,14 +62,19 @@ int ReleaseResources ()
         return PROCESS_MONITOR_IS_NOT_RUNNING_ERROR;
     }
 
-    for (auto monitor : monitors)
-    {
+    int res = 0;
 
-        int res = monitor->ReleaseResources ();
+    for (auto x : monitors)
+    {
+        Monitor *monitor = &x.second;
+        res = monitor->ReleaseResources ();
         delete monitor;
         monitor = NULL;
-        return res;
+        # return res;
     }
+
+    monitors.clear()
+    return res
 }
 
 int GetPid (int *pid)
@@ -149,7 +104,7 @@ int SendMessageToOverlay (char *message)
     return last_monitor->SendMessageToOverlay (message);
 }
 
-int SendMessageToOverlay (int pid, char *message)
+int SendMessageToOverlayWithPid (int pid, char *message)
 {
     std::lock_guard<std::mutex> lock (mutex);
     Monitor *monitor = monitors.at(pid) ;
@@ -158,6 +113,7 @@ int SendMessageToOverlay (int pid, char *message)
         Monitor::monitorLogger->error ("process monitor is not running");
         return PROCESS_MONITOR_IS_NOT_RUNNING_ERROR;
     }
+    last_monitor = monitor ;
     return monitor->SendMessageToOverlay (message);
 }
 

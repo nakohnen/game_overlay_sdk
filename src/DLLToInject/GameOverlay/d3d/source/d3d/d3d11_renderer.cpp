@@ -30,6 +30,7 @@
 #include "../../OverlayPS_Byte.h"
 #include "../../OverlayVS_Byte.h"
 #include "Recording/Capturing.h"
+#include "Recording/RecordingState.h"
 #include "Rendering/ConstantBuffer.h"
 #include "Utility/MessageLog.h"
 
@@ -171,6 +172,20 @@ namespace GameOverlay
         return on_present (0);
     }
 
+    void d3d11_renderer::HandleScreenshot()
+    {
+        if (RecordingState::GetInstance ().GetScreenshotCommand())
+        {
+            // Do screenshot
+
+            // use swapchain_ object
+            g_messageLog.LogError ("D3D11", "Screenshotting");
+
+            RecordingState::GetInstance ().SetScreenshotCommand(false) ;
+            RecordingState::GetInstance ().SetScreenshotReady(true) ;
+        }
+    }
+
     bool d3d11_renderer::on_present (int backBufferIndex)
     {
         if (status == InitializationStatus::UNINITIALIZED)
@@ -186,6 +201,8 @@ namespace GameOverlay
         }
 
         UpdateOverlayTexture ();
+
+        HandleScreenshot();
 
         switch (status)
         {

@@ -19,9 +19,8 @@ extern "C"
     __declspec(dllexport) int ReleaseResources ();
     __declspec(dllexport) int GetPid (int *pid);
     __declspec(dllexport) int SendMessageToOverlay (char *msg);
-    __declspec(dllexport) int SendMessageToOverlay (int pid, char *message);
+    __declspec(dllexport) int SendMessageToOverlayWithPid (int pid, char *message);
     __declspec(dllexport) int RunProcess (char *exePath, char *args, char *dllPath);
-    __declspec(dllexport) int RunOnProcessWithId (int pid, char *dllLoc);
 }
 
 #endif

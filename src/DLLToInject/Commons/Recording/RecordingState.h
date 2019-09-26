@@ -54,17 +54,32 @@ public:
     char *GetOverlayMessage ();
     void SetOverlayMessage (char *message);
 
+    void SetScreenshotCommand (bool new_state);
+    bool GetScreenshotCommand ();
+
+    void SetScreenshotFilename (char *filename);
+    char *GetScreenshotFilename ();
+
+    void SetScreenshotReady (bool new_state);
+    char *GetScreenshotReady ();
+
+
 private:
     RecordingState ();
 
     bool recording_ = false;
     bool stateChanged_ = false;
     bool showOverlay_ = true;
+
+    bool doScreenshot_ = false ;
+    bool screenshotReady_ = false ;
+
     float startDisplayTime_ = 1.0f;
     float endDisplayTime_ = 1.0f;
     float recordingTime_ = 0.0f;
 
     volatile char overlayMessage_[2048];
+    volatile char screenshotFilename_[2048];
 
     TextureState currentTextureState_ = TextureState::Default;
     std::chrono::high_resolution_clock::time_point currentStateStart_;

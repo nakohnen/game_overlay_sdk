@@ -1,4 +1,4 @@
-#include <Wbemidl.h>
+pl#include <Wbemidl.h>
 #include <accctrl.h>
 #include <aclapi.h>
 #include <atlcomcli.h>
@@ -18,7 +18,7 @@
 
 #pragma comment(lib, "wbemuuid.lib")
 
-#define MMAPSIZE 4096 ;
+#define MMAPSIZE 4096
 #define MMAPSIZE_SCREENSHOT 1048576
 
 std::shared_ptr<spdlog::logger> Monitor::monitorLogger = spdlog::stderr_logger_mt ("monitorLogger");
@@ -60,7 +60,7 @@ int Monitor::RunProcess (char *exePath, char *args, char *dllLoc)
     {
         return res;
     }
-    res = CreateFileMap ();
+    res = CreateFileMap (pid);
     if (res != STATUS_OK)
     {
         return res;
@@ -99,37 +99,9 @@ int Monitor::StartMonitor (char *processName, char *dllLoc)
     DWORD dwWait = WaitForSingleObject (createEvent, 3000);
     if (dwWait == WAIT_TIMEOUT)
     {
-        Monitor::monitorLogger->error ("Failed to create monitorring thread");
+        Monitor::monitorLogger->error ("Failed to create monitoring thread");
         return GENERAL_ERROR;
     }
-    return STATUS_OK;
-}
-
-int Monitor::RunOnProcessWithId(int pid, char *ddlLoc)
-{
-    strcpy ((char *)this->dllLoc, dllLoc);
-    this->pid = pid ;
-    Monitor::monitorLogger->trace ("searching process");
-
-    if (res != STATUS_OK)
-    {
-        return res;
-    }
-    res = CreateFileMap (pid);
-    if (res != STATUS_OK)
-    {
-        return res;
-    }
-    int architecture = GetArchitecture (pid);
-    DLLInjection dllInjection (this->pid, architecture, dllLoc);
-    bool is_injected = dllInjection.InjectDLL ();
-    ResumeThread (this->thread);
-    if (!is_injected)
-    {
-        Monitor::monitorLogger->error ("Failed to inject dll");
-        return GENERAL_ERROR;
-    }
-    this->processHandle = dllInjection.GetTargetProcessHandle ();
     return STATUS_OK;
 }
 
@@ -226,6 +198,10 @@ int Monitor::ReleaseResources ()
 int Monitor::GetPid ()
 {
     return this->pid;
+}
+
+char* Monitor::GetProcessName(){
+    return this->processName;
 }
 
 int Monitor::SendMessageToOverlay (char *message)

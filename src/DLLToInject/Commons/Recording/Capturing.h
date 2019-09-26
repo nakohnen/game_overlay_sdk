@@ -23,6 +23,7 @@
 #pragma once
 #include <map>
 #include <windows.h>
+#include <string>
 
 namespace GameOverlay
 {

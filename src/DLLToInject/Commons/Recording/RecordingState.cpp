@@ -39,7 +39,8 @@ RecordingState &RecordingState::GetInstance ()
 
 RecordingState::RecordingState ()
 {
-    strcpy ((char *)this->overlayMessage_, "Welcome to GameOverlay, waiting for data");
+    strcpy_s ((char *)this->screenshotFilename_, "");
+    strcpy_s ((char *)this->overlayMessage_, "Welcome to GameOverlay, waiting for data");
     currentStateStart_ = Clock::now ();
 }
 
@@ -138,4 +139,34 @@ void RecordingState::SetOverlayMessage (char *message)
 char *RecordingState::GetOverlayMessage ()
 {
     return (char *)this->overlayMessage_;
+}
+
+void RecordingState::SetScreenshotCommand (bool new_state)
+{
+    this->doScreenshot_ = new_state;
+}
+
+bool *RecordingState::GetScreenshotCommand ()
+{
+    return this->doScreenshot_;
+}
+
+void RecordingState::SetScreenshotFilename (char *filename)
+{
+    strcpy ((char *)this->screenshotFilename_, filename);
+}
+
+char *RecordingState::GetScreenshotFilename ()
+{
+    return (char *)this->screenshotFilename_;
+}
+
+void RecordingState::SetScreenshotReady (bool new_state)
+{
+    this->screenshotReady_ = new_state;
+}
+
+bool *RecordingState::GetScreenshotReady ()
+{
+    return this->screenshotReady_;
 }

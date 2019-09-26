@@ -17,11 +17,11 @@ public:
 
     int StartMonitor (char *processName, char *dllLoc);
     int RunProcess (char *exePath, char *args, char *dllLoc);
-    int RunOnProcessWithId (int pid, char *ddlLoc);
     int ReleaseResources ();
     void Callback (int pid, char *pName);
     int GetPid ();
     int SendMessageToOverlay (char *message);
+    char* GetProcessName() ;
 
 private:
     volatile HANDLE thread;

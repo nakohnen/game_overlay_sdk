@@ -131,6 +131,21 @@ namespace GameOverlay
         }
     } // namespace
 
+    void d3d12_renderer::HandleScreenshot()
+    {
+        if (RecordingState::GetInstance ().GetScreenshotCommand())
+        {
+            // Do screenshot
+
+            // use swapchain_ object
+
+            g_messageLog.LogError ("D3D12", "Screenshotting");
+
+            RecordingState::GetInstance ().SetScreenshotCommand(false) ;
+            RecordingState::GetInstance ().SetScreenshotReady(true) ;
+        }
+    }
+
     bool d3d12_renderer::on_present ()
     {
         const auto currentBufferIndex = swapchain_->GetCurrentBackBufferIndex ();
@@ -153,6 +168,8 @@ namespace GameOverlay
         UpdateOverlayTexture ();
 
         DrawOverlay (backBufferIndex);
+
+        HandleScreenshot();
 
         return true;
     }

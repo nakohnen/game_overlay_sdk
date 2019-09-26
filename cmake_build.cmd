@@ -3,7 +3,7 @@ mkdir build
 
 cd build
 
-cmake -G "Visual Studio 15 2017 Win64" -DCMAKE_SYSTEM_VERSION=10.0.15063.0 ..
+cmake -G "Visual Studio 16 2019" -DCMAKE_SYSTEM_VERSION=10.0.15063.0 ..
 cmake --build . --config Release
 cd ..
 
@@ -16,3 +16,5 @@ echo F | xcopy /Y src\DLLToInject\GameOverlay\vulkan\src\shader.frag python\game
 echo F | xcopy /Y src\DLLToInject\GameOverlay\vulkan\src\shader.comp python\game_overlay_sdk\lib\shader.comp
 
 echo F | xcopy /Y src\DLLToInject\GameOverlay\vulkan\VK_LAYER_OCAT_overlay64.json python\game_overlay_sdk\lib\VK_LAYER_OCAT_overlay64.json
+
+cmd \k
