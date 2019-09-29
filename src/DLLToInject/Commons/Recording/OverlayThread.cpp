@@ -84,6 +84,8 @@ namespace GameOverlay
         HANDLE mapFile =
             OpenFileMapping (FILE_MAP_ALL_ACCESS, FALSE, sw);
 
+        // *******************************************************************
+
         fileMapName = "Global\\GameOverlayImageMap";
         if (pid > 0){
             fileMapName.append("_") ;
@@ -96,7 +98,24 @@ namespace GameOverlay
         HANDLE mapImageFile =
             OpenFileMapping (FILE_MAP_ALL_ACCESS, FALSE, sw);
 
-        if ((mapFile == NULL) || (mapImageFile == NULL))
+        // *******************************************************************
+
+        fileMapName = "Global\\GameOverlayCommandMap";
+        if (pid > 0){
+            fileMapName.append("_") ;
+            fileMapName.append(std::to_string(pid)) ;
+        }
+
+        stemp = std::wstring(fileMapName.begin(), fileMapName.end());
+        sw = stemp.c_str();
+
+        HANDLE mapCommandFile =
+            OpenFileMapping (FILE_MAP_ALL_ACCESS, FALSE, sw);
+
+        // *******************************************************************
+
+
+        if ((mapFile == NULL) || (mapImageFile == NULL) || (mapCommandFile == NULL))
         {
             g_messageLog.LogError ("OverlayThread", "Failed to open image file mapping", GetLastError ());
         }
@@ -114,43 +133,52 @@ namespace GameOverlay
 
         while (!this->quit_)
         {
-            if (mapFile && mapImageFile)
+            if (mapFile && mapImageFile && mapCommandFile)
             {
-                char *buf = (char *)MapViewOfFile (mapFile, FILE_MAP_ALL_ACCESS, 0, 0, MMAPSIZE);
-                if (buf)
+                char *buf_command = (char *)MapViewOfFile (mapFile, FILE_MAP_ALL_ACCESS, 0, 0, MMAPSIZE);
+
+                char *buf_text = (char *)MapViewOfFile (mapCommandFile, FILE_MAP_ALL_ACCESS, 0, 0, MMAPSIZE);
+
+                if (buf_command)
                 {
                     // If we read screenshot in the message queue then we should do a screenshot
-                    if (strcmp(buf, "SCREENSHOT")==0){
+                    if (strcmp(buf_command, "SCREENSHOT")==0){
                         // do screenshot
                         RecordingState::GetInstance ().SetScreenshotCommand(true);
 
                         // Tell caller that the image is ready
                         char message[5] = "WAIT" ;
-                        CopyMemory ((PVOID)buf, message, (strlen (message) + 1) * sizeof (char));
+                        CopyMemory ((PVOID)buf_command, message, (strlen (message) + 1) * sizeof (char));
 
                     // We wait until the screenshot is ready
-                    } else if (strcmp(buf, "WAIT") == 0) {
+                    } else if (strcmp(buf_command, "WAIT") == 0)
+                    {
                         if (RecordingState::GetInstance ().GetScreenshotReady())
-                            {
+                        {
                             // Tell caller that the image is ready
                             char message[5] = "READ" ;
-                            CopyMemory ((PVOID)buf, message, (strlen (message) + 1) * sizeof (char));
+                            CopyMemory ((PVOID)buf_command, message, (strlen (message) + 1) * sizeof (char));
                         }
                     }
-                    // No command is given so print the message on the screen
-                    else
-                    {
-                        RecordingState::GetInstance ().SetOverlayMessage (buf);
-                    }
-                    UnmapViewOfFile (buf);
-                }
-                else
-                {
-                    g_messageLog.LogError ("OverlayThread", "Failed to read from mapped file");
-                }
-            }
-            Sleep (200);
-        }
-    }
 
+                    UnmapViewOfFile (buf_command);
+
+                }
+
+                // No command is given so print the message on the screen
+                if (buf_text)
+                {
+                    RecordingState::GetInstance ().SetOverlayMessage (buf_text);
+                    UnmapViewOfFile (buf_text);
+                }
+
+
+            }
+            else
+            {
+                g_messageLog.LogError ("OverlayThread", "Failed to read from mapped file");
+            }
+        }
+        Sleep (200);
+    }
 }

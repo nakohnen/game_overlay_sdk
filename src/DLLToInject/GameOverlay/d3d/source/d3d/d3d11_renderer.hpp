@@ -58,6 +58,7 @@ namespace GameOverlay
         {
             return viewPort_;
         }
+        void HandleScreenshot();
 
     private:
         bool CreateOverlayRenderTarget ();

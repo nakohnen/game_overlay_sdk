@@ -54,6 +54,8 @@ namespace GameOverlay
             return viewPort_;
         }
 
+        void HandleScreenshot();
+
     private:
         bool CreateCMDList ();
         bool CreateRenderTargets ();

@@ -5,6 +5,7 @@
 
 #include <logger\spdlog.h>
 #include <windows.h>
+#include <string>
 
 class Monitor
 {
@@ -21,7 +22,9 @@ public:
     void Callback (int pid, char *pName);
     int GetPid ();
     int SendMessageToOverlay (char *message);
-    char* GetProcessName() ;
+
+    int GetCommandFromOverlay(char *retArray) ;
+    int SendCommandToOverlay (char *message) ;
 
 private:
     volatile HANDLE thread;
@@ -29,6 +32,7 @@ private:
     volatile HANDLE stopEvent;
     volatile HANDLE mapFile;
     volatile HANDLE mapImageFile;
+    volatile HANDLE mapCommandFile;
     volatile char processName[1024];
     volatile char dllLoc[1024];
     volatile char exePath[1024];
@@ -42,7 +46,10 @@ private:
     HANDLE GetProcessHandleFromID (DWORD id, DWORD access);
     int CreateDesktopProcess (char *path, char *cmdArgs);
     int CreateFileMap ();
+    int CreateFileMap (int pid) ;
     bool CheckTargetProcessAlive ();
+
+    HANDLE CreateFileMapHelper (std::string name, int pid, int map_size) ;
 };
 
 #endif

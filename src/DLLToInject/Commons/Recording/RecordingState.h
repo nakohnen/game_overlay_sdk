@@ -61,7 +61,7 @@ public:
     char *GetScreenshotFilename ();
 
     void SetScreenshotReady (bool new_state);
-    char *GetScreenshotReady ();
+    bool GetScreenshotReady ();
 
 
 private:

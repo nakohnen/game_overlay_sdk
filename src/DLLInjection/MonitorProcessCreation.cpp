@@ -1,12 +1,13 @@
 #include <mutex>
 #include <string.h>
-#include <unordered_map>
+#include <vector>
 
 #include "Monitor.h"
 #include "MonitorProcessCreation.h"
 
-Monitor *last_monitor = NULL;
-std::unordered_map<int, Monitor> monitors*;
+Monitor *last_monitor;
+std::vector<Monitor> monitors;
+//monitors.reserve(5);
 std::mutex mutex;
 
 int SetLogLevel (int level)
@@ -27,76 +28,67 @@ int StartMonitor (char *processName, char *dllLoc)
         return GENERAL_ERROR;
     }
 
-    int monitor_pid = monitor->GetPid() ;
-    monitors.insert( std::make_pair<int, Monitor>(monitor_pid, monitor) ) ;
-    last_monitor = monitor ;
-
+    monitors.push_back(*monitor) ;
+    last_monitor = &(monitors.back()) ;
     return monitor->StartMonitor (processName, dllLoc);
 }
 
 int RunProcess (char *exePath, char *args, char *dllLoc)
 {
     std::lock_guard<std::mutex> lock (mutex);
-    Monitor *monitor = NULL;
-    monitor = new Monitor ();
+
+    last_monitor = new Monitor();
+    monitors.emplace_back() ;
+    Monitor *monitor = &(monitors.back());
     if (!monitor)
     {
         Monitor::monitorLogger->error ("failed to create monitor");
         return GENERAL_ERROR;
     }
-
-    int monitor_pid = monitor->GetPid() ;
-    monitors.insert( std::make_pair<int, Monitor>(monitor_pid, monitor) ) ;
     last_monitor = monitor ;
-
-    return monitor->RunProcess (exePath, args, dllLoc);
+    //return last_monitor->RunProcess(exePath, args, dllLoc);
+    return monitors.back().RunProcess (exePath, args, dllLoc);
+    //return 1;
 }
 
 int ReleaseResources ()
 {
     std::lock_guard<std::mutex> lock (mutex);
 
-    if (!monitors)
+    if (monitors.size() == 0)
     {
-        Monitor::monitorLogger->error ("process monitor is not running");
+        Monitor::monitorLogger->error ("no process monitor is not running");
         return PROCESS_MONITOR_IS_NOT_RUNNING_ERROR;
     }
 
     int res = 0;
 
-    for (auto x : monitors)
+    // using begin() to print vector
+    for(auto monitor: monitors)
     {
-        Monitor *monitor = &x.second;
-        res = monitor->ReleaseResources ();
-        delete monitor;
-        monitor = NULL;
-        # return res;
+        res = monitor.ReleaseResources ();
+        //delete monitor;
+        //monitor = NULL;
     }
-
-    monitors.clear()
-    return res
+    monitors.clear();
+    return res;
 }
 
 int GetPid (int *pid)
 {
     std::lock_guard<std::mutex> lock (mutex);
-    if (!last_monitor)
+    if (last_monitor != nullptr)
     {
         Monitor::monitorLogger->error ("process monitor is not running");
         return PROCESS_MONITOR_IS_NOT_RUNNING_ERROR;
     }
-    *pid = last_monitor->GetPid ();
-    if (*pid == 0)
-    {
-        return TARGET_PROCESS_IS_NOT_CREATED_ERROR;
-    }
-    return STATUS_OK;
+    return last_monitor->GetPid();
 }
 
 int SendMessageToOverlay (char *message)
 {
     std::lock_guard<std::mutex> lock (mutex);
-    if (!last_monitor)
+    if (last_monitor == nullptr)
     {
         Monitor::monitorLogger->error ("process monitor is not running");
         return PROCESS_MONITOR_IS_NOT_RUNNING_ERROR;
@@ -107,14 +99,14 @@ int SendMessageToOverlay (char *message)
 int SendMessageToOverlayWithPid (int pid, char *message)
 {
     std::lock_guard<std::mutex> lock (mutex);
-    Monitor *monitor = monitors.at(pid) ;
-    if (!monitor)
+    for(auto it_monitor: monitors)
     {
-        Monitor::monitorLogger->error ("process monitor is not running");
-        return PROCESS_MONITOR_IS_NOT_RUNNING_ERROR;
+        if (it_monitor.GetPid() == pid) {
+            return it_monitor->SendMessageToOverlay (message);
+        }
     }
-    last_monitor = monitor ;
-    return monitor->SendMessageToOverlay (message);
+    Monitor::monitorLogger->error ("process monitor is not running");
+    return PROCESS_MONITOR_IS_NOT_RUNNING_ERROR;
 }
 
 BOOL WINAPI DllMain (HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved)
@@ -124,30 +116,23 @@ BOOL WINAPI DllMain (HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved)
 
         case DLL_PROCESS_DETACH:
         {
-            if (last_monitor) {
-                last_monitor->ReleaseResources ();
-                delete last_monitor;
-                last_monitor = NULL;
-
-                monitors.clear() ;
-                delete monitors;
-
-            }
-            /*if (last_monitor)
+            Monitor::monitorLogger->error ("DLL_PROCESS_DETACH called");
+            int to_del = -1;
+            for (int i=0; i < monitors.size(); i++)
             {
-                int pid = last_monitor.GetPid();
-
-                monitors.erase(pid);
-
-                last_monitor->ReleaseResources ();
-
-                delete monitors[pid].second;
-                for (auto monitor : monitors) {
-                    last_monitor = monitor.second ;
+                if (monitors.at(i).GetPid() == last_monitor->GetPid()) {
+                    to_del = i;
                     break;
                 }
+            }
 
-            }*/
+            if (to_del >= 0)
+                monitors.erase(monitors.begin() + to_del) ;
+            last_monitor = nullptr;
+
+            //ReleaseResources() ;
+            //last_monitor = NULL;
+            //monitors.clear() ;
             break;
         }
         default:

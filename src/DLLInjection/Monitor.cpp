@@ -1,4 +1,4 @@
-pl#include <Wbemidl.h>
+#include <Wbemidl.h>
 #include <accctrl.h>
 #include <aclapi.h>
 #include <atlcomcli.h>
@@ -28,8 +28,11 @@ Monitor::Monitor ()
     this->thread = NULL;
     this->createEvent = NULL;
     this->stopEvent = NULL;
+
     this->mapFile = NULL;
     this->mapImageFile = NULL;
+    this->mapCommandFile = NULL;
+
     this->pid = 0;
     this->processHandle = NULL;
 }
@@ -53,8 +56,8 @@ void Monitor::SetLogLevel (int level)
 
 int Monitor::RunProcess (char *exePath, char *args, char *dllLoc)
 {
-    strcpy ((char *)this->dllLoc, dllLoc);
-    strcpy ((char *)this->exePath, exePath);
+    strcpy_s ((char *)this->dllLoc, 1023, dllLoc);
+    strcpy_s ((char *)this->exePath, 1023, exePath);
     int res = CreateDesktopProcess (exePath, args);
     if (res != STATUS_OK)
     {
@@ -80,10 +83,10 @@ int Monitor::RunProcess (char *exePath, char *args, char *dllLoc)
 
 int Monitor::StartMonitor (char *processName, char *dllLoc)
 {
-    strcpy ((char *)this->processName, processName);
-    strcpy ((char *)this->dllLoc, dllLoc);
+    strcpy_s ((char *)this->processName, 1023, processName);
+    strcpy_s ((char *)this->dllLoc, 1023, dllLoc);
     Monitor::monitorLogger->trace ("start monitoring");
-    int res = CreateFileMap ();
+    int res = CreateFileMap (0);
     if (res != STATUS_OK)
     {
         return res;
@@ -105,28 +108,69 @@ int Monitor::StartMonitor (char *processName, char *dllLoc)
     return STATUS_OK;
 }
 
+HANDLE Monitor::CreateFileMapHelper(std::string name, int pid, int mapsize) {
+    // Create mmp where the overlay text gets written to
+    std::string fileMapName = std::string(name);
+    if (pid > 0){
+        fileMapName.append("_") ;
+        fileMapName.append(std::to_string(pid)) ;
+    }
+
+    return CreateFileMapping (INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, mapsize, fileMapName.c_str());
+}
+
 int Monitor::CreateFileMap (int pid)
 {
-    char fileMapName[64];
+    /*
+    // Create mmp where the overlay text gets written to
+    std::string fileMapName = std::string();
+
+    fileMapName = "Global\\GameOverlayMap";
     if (pid > 0){
-        sprintf(fileMapName, "Global\\GameOverlayMap_%d", pid);
-    } else {
-        fileMapName = "Global\\GameOverlayMap";
+        fileMapName.append("_") ;
+        fileMapName.append(std::to_string(pid)) ;
     }
+
+    std::wstring stemp = std::wstring(fileMapName.begin(), fileMapName.end());
+    LPCWSTR sw = stemp.c_str();
 
     this->mapFile = CreateFileMapping (
-        INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, MMAPSIZE, TEXT (fileMapName));
+        INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, MMAPSIZE, sw);
 
-    char fileMapName[64];
+    // Create mmap where the screenshot gets saved
+    fileMapName = "Global\\GameOverlayImageMap";
     if (pid > 0){
-        sprintf(fileMapName, "Global\\GameOverlayImageMap_%d", pid);
-    } else {
-        fileMapName = "Global\\GameOverlayImageMap";
+        fileMapName.append("_") ;
+        fileMapName.append(std::to_string(pid)) ;
     }
-    this->mapImageFile = CreateFileMapping (
-        INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, MMAPSIZE_SCREENSHOT, TEXT (fileMapName));
 
-    if (this->mapFile == NULL or this->mapImageFile == NULL)
+    std::wstring stemp = std::wstring(fileMapName.begin(), fileMapName.end());
+    LPCWSTR sw = stemp.c_str();
+
+    this->mapImageFile = CreateFileMapping (
+        INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, MMAPSIZE_SCREENSHOT, sw);
+
+    // Create mmap where the commands are shared
+    fileMapName = "Global\\GameOverlayImageMap";
+    if (pid > 0){
+        fileMapName.append("_") ;
+        fileMapName.append(std::to_string(pid)) ;
+    }
+
+    std::wstring stemp = std::wstring(fileMapName.begin(), fileMapName.end());
+    LPCWSTR sw = stemp.c_str();
+
+    this->mapCommandFile = CreateFileMapping (
+        INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, MMAPSIZE, sw); */
+
+    //*************************
+
+
+    this->mapFile = CreateFileMapHelper("Global\\GameOverlayMap", pid, MMAPSIZE) ;
+    this->mapImageFile = CreateFileMapHelper("Global\\GameOverlayImageMap", pid, MMAPSIZE_SCREENSHOT) ;
+    this->mapCommandFile = CreateFileMapHelper("Global\\GameOverlayCommandMap", pid, MMAPSIZE) ;
+
+    if ((this->mapFile == NULL) || (this->mapImageFile == NULL) || (this->mapCommandFile == NULL))
     {
         Monitor::monitorLogger->error ("failed to create mmapped file : Error {}", GetLastError ());
         return GENERAL_ERROR;
@@ -200,10 +244,6 @@ int Monitor::GetPid ()
     return this->pid;
 }
 
-char* Monitor::GetProcessName(){
-    return this->processName;
-}
-
 int Monitor::SendMessageToOverlay (char *message)
 {
     if ((this->mapFile == NULL) || (this->pid == 0))
@@ -228,6 +268,61 @@ int Monitor::SendMessageToOverlay (char *message)
     CopyMemory ((PVOID)buf, message, (strlen (message) + 1) * sizeof (char));
     UnmapViewOfFile (buf);
     return STATUS_OK;
+}
+
+int Monitor::SendCommandToOverlay (char *message)
+{
+    if ((this->mapCommandFile == NULL) || (this->pid == 0))
+    {
+        Monitor::monitorLogger->error ("No process to send command to");
+        return TARGET_PROCESS_IS_NOT_CREATED_ERROR;
+    }
+    if (!CheckTargetProcessAlive ())
+    {
+        Monitor::monitorLogger->error ("target process was terminated, don't send message");
+        this->pid = 0;
+        this->processHandle = NULL;
+        return TARGET_PROCESS_WAS_TERMINATED_ERROR;
+    }
+    monitorLogger->trace ("sending message '{}' to {}", message, this->pid);
+    char *buf = (char *)MapViewOfFile (this->mapCommandFile, FILE_MAP_WRITE, 0, 0, MMAPSIZE);
+    if (buf == NULL)
+    {
+        monitorLogger->error ("failed to create MapViewOfFile {}", GetLastError ());
+        return GENERAL_ERROR;
+    }
+    CopyMemory ((PVOID)buf, message, (strlen (message) + 1) * sizeof (char));
+    UnmapViewOfFile (buf);
+    return STATUS_OK;
+}
+
+int Monitor::GetCommandFromOverlay(char * retArray){
+    if ((this->mapCommandFile == NULL) || (this->pid == 0))
+    {
+        Monitor::monitorLogger->error ("No process to send command to");
+        return 1;
+    }
+    if (!CheckTargetProcessAlive ())
+    {
+        Monitor::monitorLogger->error ("target process was terminated, don't send message");
+        this->pid = 0;
+        this->processHandle = NULL;
+        return 1;
+    }
+
+    monitorLogger->trace ("reading command from {}", this->pid);
+
+    char *buf = (char *)MapViewOfFile (this->mapCommandFile, FILE_MAP_WRITE, 0, 0, MMAPSIZE);
+
+    if (buf == NULL)
+    {
+        monitorLogger->error ("failed to create MapViewOfFile {}", GetLastError ());
+        return 1;
+    }
+    CopyMemory (retArray, (PVOID)buf, 64 * sizeof (char));
+    UnmapViewOfFile (buf);
+
+    return 0;
 }
 
 void Monitor::Callback (int pid, char *pName)
