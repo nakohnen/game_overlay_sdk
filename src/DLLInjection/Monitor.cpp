@@ -115,7 +115,7 @@ HANDLE Monitor::CreateFileMapHelper(std::string name, int pid, int mapsize) {
         fileMapName.append("_") ;
         fileMapName.append(std::to_string(pid)) ;
     }
-
+    Monitor::monitorLogger->info ("mmapped file created: {}", fileMapName);
     return CreateFileMapping (INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, mapsize, fileMapName.c_str());
 }
 
@@ -174,6 +174,8 @@ int Monitor::CreateFileMap (int pid)
     {
         Monitor::monitorLogger->error ("failed to create mmapped file : Error {}", GetLastError ());
         return GENERAL_ERROR;
+    } else {
+        Monitor::monitorLogger->info ("mmapped files successfully created");
     }
     SetSecurityInfo (this->mapFile, SE_KERNEL_OBJECT,
         DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION, NULL, NULL, NULL, NULL);
@@ -246,6 +248,7 @@ int Monitor::GetPid ()
 
 int Monitor::SendMessageToOverlay (char *message)
 {
+    //Monitor::monitorLogger->info ("received message to send to overlay");
     if ((this->mapFile == NULL) || (this->pid == 0))
     {
         Monitor::monitorLogger->error ("No process to send message to");
@@ -258,15 +261,17 @@ int Monitor::SendMessageToOverlay (char *message)
         this->processHandle = NULL;
         return TARGET_PROCESS_WAS_TERMINATED_ERROR;
     }
-    monitorLogger->trace ("sending message '{}' to {}", message, this->pid);
+    //Monitor::monitorLogger->info ("sending message to {}", this->pid);
+    Monitor::monitorLogger->trace ("sending message '{}' to {}", message, this->pid);
     char *buf = (char *)MapViewOfFile (this->mapFile, FILE_MAP_WRITE, 0, 0, MMAPSIZE);
     if (buf == NULL)
     {
-        monitorLogger->error ("failed to create MapViewOfFile {}", GetLastError ());
+        Monitor::monitorLogger->error ("failed to create MapViewOfFile {}", GetLastError ());
         return GENERAL_ERROR;
     }
     CopyMemory ((PVOID)buf, message, (strlen (message) + 1) * sizeof (char));
     UnmapViewOfFile (buf);
+    //Monitor::monitorLogger->info ("data copied and finished");
     return STATUS_OK;
 }
 

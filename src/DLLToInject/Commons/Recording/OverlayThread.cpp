@@ -71,6 +71,7 @@ namespace GameOverlay
         int pid = GetCurrentProcessId();
 
         std::string fileMapName = std::string();
+        char fileName_array[64];
 
         fileMapName = "Global\\GameOverlayMap";
         if (pid > 0){
@@ -80,6 +81,10 @@ namespace GameOverlay
 
         std::wstring stemp = std::wstring(fileMapName.begin(), fileMapName.end());
         LPCWSTR sw = stemp.c_str();
+
+
+        CopyMemory (fileName_array, fileMapName.c_str(), (fileMapName.size() + 1) * sizeof (char));
+        RecordingState::GetInstance ().SetOverlayMessage (fileName_array);
 
         HANDLE mapFile =
             OpenFileMapping (FILE_MAP_ALL_ACCESS, FALSE, sw);
@@ -95,6 +100,9 @@ namespace GameOverlay
         stemp = std::wstring(fileMapName.begin(), fileMapName.end());
         sw = stemp.c_str();
 
+        CopyMemory (fileName_array, fileMapName.c_str(), (fileMapName.size() + 1) * sizeof (char));
+        RecordingState::GetInstance ().SetOverlayMessage (fileName_array);
+
         HANDLE mapImageFile =
             OpenFileMapping (FILE_MAP_ALL_ACCESS, FALSE, sw);
 
@@ -109,6 +117,9 @@ namespace GameOverlay
         stemp = std::wstring(fileMapName.begin(), fileMapName.end());
         sw = stemp.c_str();
 
+        CopyMemory (fileName_array, fileMapName.c_str(), (fileMapName.size() + 1) * sizeof (char));
+        RecordingState::GetInstance ().SetOverlayMessage (fileName_array);
+
         HANDLE mapCommandFile =
             OpenFileMapping (FILE_MAP_ALL_ACCESS, FALSE, sw);
 
@@ -120,7 +131,6 @@ namespace GameOverlay
             g_messageLog.LogError ("OverlayThread", "Failed to open image file mapping", GetLastError ());
         }
         g_messageLog.LogInfo ("OverlayThread", "Opened mapped files");
-
 
 
         // declaring character array
@@ -135,9 +145,7 @@ namespace GameOverlay
         {
             if (mapFile && mapImageFile && mapCommandFile)
             {
-                char *buf_command = (char *)MapViewOfFile (mapFile, FILE_MAP_ALL_ACCESS, 0, 0, MMAPSIZE);
-
-                char *buf_text = (char *)MapViewOfFile (mapCommandFile, FILE_MAP_ALL_ACCESS, 0, 0, MMAPSIZE);
+                char *buf_command = (char *)MapViewOfFile (mapCommandFile, FILE_MAP_ALL_ACCESS, 0, 0, MMAPSIZE);
 
                 if (buf_command)
                 {
@@ -166,6 +174,8 @@ namespace GameOverlay
                 }
 
                 // No command is given so print the message on the screen
+                char *buf_text = (char *)MapViewOfFile (mapFile, FILE_MAP_ALL_ACCESS, 0, 0, MMAPSIZE);
+
                 if (buf_text)
                 {
                     RecordingState::GetInstance ().SetOverlayMessage (buf_text);

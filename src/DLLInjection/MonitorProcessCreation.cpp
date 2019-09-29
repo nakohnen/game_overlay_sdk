@@ -77,12 +77,18 @@ int ReleaseResources ()
 int GetPid (int *pid)
 {
     std::lock_guard<std::mutex> lock (mutex);
-    if (last_monitor != nullptr)
+    if (last_monitor == nullptr)
     {
         Monitor::monitorLogger->error ("process monitor is not running");
         return PROCESS_MONITOR_IS_NOT_RUNNING_ERROR;
     }
-    return last_monitor->GetPid();
+    *pid = last_monitor->GetPid ();
+    if (*pid == 0)
+    {
+        return TARGET_PROCESS_IS_NOT_CREATED_ERROR;
+    }
+    return STATUS_OK;
+
 }
 
 int SendMessageToOverlay (char *message)
@@ -102,7 +108,7 @@ int SendMessageToOverlayWithPid (int pid, char *message)
     for(auto it_monitor: monitors)
     {
         if (it_monitor.GetPid() == pid) {
-            return it_monitor->SendMessageToOverlay (message);
+            return it_monitor.SendMessageToOverlay (message);
         }
     }
     Monitor::monitorLogger->error ("process monitor is not running");
