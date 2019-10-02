@@ -7,7 +7,7 @@
 
 Monitor *last_monitor;
 std::vector<Monitor> monitors;
-//monitors.reserve(5);
+// monitors.reserve(100);
 std::mutex mutex;
 
 int SetLogLevel (int level)
@@ -37,17 +37,18 @@ int RunProcess (char *exePath, char *args, char *dllLoc)
 {
     std::lock_guard<std::mutex> lock (mutex);
 
-    last_monitor = new Monitor();
+    if (monitors.capacity()<5) {
+        monitors.reserve(100);
+    }
     monitors.emplace_back() ;
     Monitor *monitor = &(monitors.back());
     if (!monitor)
     {
-        Monitor::monitorLogger->error ("failed to create monitor");
         return GENERAL_ERROR;
     }
     last_monitor = monitor ;
     //return last_monitor->RunProcess(exePath, args, dllLoc);
-    return monitors.back().RunProcess (exePath, args, dllLoc);
+    return last_monitor->RunProcess (exePath, args, dllLoc);
     //return 1;
 }
 
