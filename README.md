@@ -1,3 +1,12 @@
+# Attention :
+This fork has be made to implement screenshotting hidden game windows using DirectX.
+
+Whith this fork you can:
+- monitor multiple instances of games (arbitrary limit of 100 instances)
+- make screenshots of the game window (even if hidden) BUT ONLY FOR D3D11 games (for now).
+
+Screenshots will be saved in exe file location with the filename "SCREENSHOT_*pid*.JPG" where *pid* is the process id of the game instance.
+
 # Game Overlay SDK
 Library to write text messages on top of game window.
 
