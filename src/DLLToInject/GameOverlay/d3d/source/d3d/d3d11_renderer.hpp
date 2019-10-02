@@ -29,8 +29,11 @@
 #include <d3d11.h>
 #include <vector>
 #include <wrl.h>
+#include <functional>
 
 #include "Rendering/OverlayBitmap.h"
+
+using Microsoft::WRL::ComPtr;
 
 namespace GameOverlay
 {
@@ -40,6 +43,35 @@ namespace GameOverlay
         IMMEDIATE_CONTEXT_INITIALIZED,
         UNINITIALIZED
     };
+
+    inline DXGI_FORMAT EnsureNotTypeless(DXGI_FORMAT fmt)
+    {
+        // Assumes UNORM or FLOAT; doesn't use UINT or SINT
+        switch (fmt)
+        {
+            case DXGI_FORMAT_R32G32B32A32_TYPELESS: return DXGI_FORMAT_R32G32B32A32_FLOAT;
+            case DXGI_FORMAT_R32G32B32_TYPELESS:    return DXGI_FORMAT_R32G32B32_FLOAT;
+            case DXGI_FORMAT_R16G16B16A16_TYPELESS: return DXGI_FORMAT_R16G16B16A16_UNORM;
+            case DXGI_FORMAT_R32G32_TYPELESS:       return DXGI_FORMAT_R32G32_FLOAT;
+            case DXGI_FORMAT_R10G10B10A2_TYPELESS:  return DXGI_FORMAT_R10G10B10A2_UNORM;
+            case DXGI_FORMAT_R8G8B8A8_TYPELESS:     return DXGI_FORMAT_R8G8B8A8_UNORM;
+            case DXGI_FORMAT_R16G16_TYPELESS:       return DXGI_FORMAT_R16G16_UNORM;
+            case DXGI_FORMAT_R32_TYPELESS:          return DXGI_FORMAT_R32_FLOAT;
+            case DXGI_FORMAT_R8G8_TYPELESS:         return DXGI_FORMAT_R8G8_UNORM;
+            case DXGI_FORMAT_R16_TYPELESS:          return DXGI_FORMAT_R16_UNORM;
+            case DXGI_FORMAT_R8_TYPELESS:           return DXGI_FORMAT_R8_UNORM;
+            case DXGI_FORMAT_BC1_TYPELESS:          return DXGI_FORMAT_BC1_UNORM;
+            case DXGI_FORMAT_BC2_TYPELESS:          return DXGI_FORMAT_BC2_UNORM;
+            case DXGI_FORMAT_BC3_TYPELESS:          return DXGI_FORMAT_BC3_UNORM;
+            case DXGI_FORMAT_BC4_TYPELESS:          return DXGI_FORMAT_BC4_UNORM;
+            case DXGI_FORMAT_BC5_TYPELESS:          return DXGI_FORMAT_BC5_UNORM;
+            case DXGI_FORMAT_B8G8R8A8_TYPELESS:     return DXGI_FORMAT_B8G8R8A8_UNORM;
+            case DXGI_FORMAT_B8G8R8X8_TYPELESS:     return DXGI_FORMAT_B8G8R8X8_UNORM;
+            case DXGI_FORMAT_BC7_TYPELESS:          return DXGI_FORMAT_BC7_UNORM;
+            default:                                return fmt;
+        }
+    }
+
 
     class d3d11_renderer final
     {
@@ -89,5 +121,45 @@ namespace GameOverlay
         std::unique_ptr<OverlayBitmap> overlayBitmap_;
 
         InitializationStatus status = InitializationStatus::UNINITIALIZED;
+
+        HRESULT d3d11_renderer::SaveWICTextureToFile(ID3D11DeviceContext* pContext,
+                                                     ID3D11Resource* pSource,
+                                                     REFGUID guidContainerFormat,
+                                                     const wchar_t* fileName,
+                                                     const GUID* targetFormat,
+                                                     std::function<void(IPropertyBag2*)> setCustomProps,
+                                                     bool forceSRGB);
+        HRESULT d3d11_renderer::CaptureTexture( _In_ ID3D11DeviceContext* pContext,
+                                                _In_ ID3D11Resource* pSource,
+                                                D3D11_TEXTURE2D_DESC& desc,
+                                                ComPtr<ID3D11Texture2D>& pStaging);
+        bool _IsWIC2();
+        IWICImagingFactory* _GetWIC();
+        // Also used by ScreenGrab
+
+    };
+
+    class auto_delete_file_wic
+    {
+    public:
+        auto_delete_file_wic(Microsoft::WRL::ComPtr<IWICStream>& hFile, LPCWSTR szFile) : m_filename(szFile), m_handle(hFile) {}
+
+        auto_delete_file_wic(const auto_delete_file_wic&) = delete;
+        auto_delete_file_wic& operator=(const auto_delete_file_wic&) = delete;
+
+        ~auto_delete_file_wic()
+        {
+            if (m_filename)
+            {
+                m_handle.Reset();
+                DeleteFileW(m_filename);
+            }
+        }
+
+        void clear() { m_filename = nullptr; }
+
+    private:
+        LPCWSTR m_filename;
+        Microsoft::WRL::ComPtr<IWICStream>& m_handle;
     };
 }

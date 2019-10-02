@@ -51,7 +51,7 @@ int RunProcess (char *exePath, char *args, char *dllLoc)
     //return 1;
 }
 
-int ReleaseResources ()
+int ReleaseResources (int pid)
 {
     std::lock_guard<std::mutex> lock (mutex);
 
@@ -64,14 +64,21 @@ int ReleaseResources ()
     int res = 0;
 
     // using begin() to print vector
-    for(auto monitor: monitors)
+    for(auto& monitor: monitors)
     {
-        res = monitor.ReleaseResources ();
+        if (monitor.GetPid() == pid) res = monitor.ReleaseResources ();
         //delete monitor;
         //monitor = NULL;
     }
-    monitors.clear();
+    // monitors.clear();
     return res;
+}
+
+int ReleaseAllResourcesAndCleanup()
+{
+    std::lock_guard<std::mutex> lock (mutex);
+    monitors.clear();
+    return STATUS_OK;
 }
 
 int GetPid (int *pid)
@@ -105,12 +112,31 @@ int SendMessageToOverlay (char *message)
 int SendMessageToOverlayWithPid (int pid, char *message)
 {
     std::lock_guard<std::mutex> lock (mutex);
-    for(auto it_monitor: monitors)
+    for(auto& it_monitor: monitors)
     {
         if (it_monitor.GetPid() == pid) {
             return it_monitor.SendMessageToOverlay (message);
         }
     }
+    Monitor::monitorLogger->error ("process monitor is not running");
+    return PROCESS_MONITOR_IS_NOT_RUNNING_ERROR;
+}
+
+int RequestScreenshotFromProcessWithPid (int pid)
+{
+    std::lock_guard<std::mutex> lock (mutex);
+    int res;
+    for(auto& it_monitor: monitors)
+    {
+        if (it_monitor.GetPid() == pid) {
+            Monitor::monitorLogger->error ("before screenshot request");
+            res = it_monitor.RequestScreenshot ();
+            Monitor::monitorLogger->error ("after screenshot request");
+            break;
+        }
+    }
+    Monitor::monitorLogger->error ("after loop");
+    if (res == STATUS_OK) return res;
     Monitor::monitorLogger->error ("process monitor is not running");
     return PROCESS_MONITOR_IS_NOT_RUNNING_ERROR;
 }
@@ -123,7 +149,7 @@ BOOL WINAPI DllMain (HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved)
         case DLL_PROCESS_DETACH:
         {
             Monitor::monitorLogger->error ("DLL_PROCESS_DETACH called");
-            int to_del = -1;
+            /* int to_del = -1;
             for (int i=0; i < monitors.size(); i++)
             {
                 if (monitors.at(i).GetPid() == last_monitor->GetPid()) {
@@ -134,7 +160,7 @@ BOOL WINAPI DllMain (HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved)
 
             if (to_del >= 0)
                 monitors.erase(monitors.begin() + to_del) ;
-            last_monitor = nullptr;
+            last_monitor = nullptr; */
 
             //ReleaseResources() ;
             //last_monitor = NULL;

@@ -58,7 +58,15 @@ class InjectorDLL (object):
         # stop monitorring
         self.ReleaseResources = self.lib.ReleaseResources
         self.ReleaseResources.restype = ctypes.c_int
-        self.ReleaseResources.argtypes = []
+        self.ReleaseResources.argtypes = [
+			ctypes.c_int
+		]
+		
+		# stop monitorring
+        self.ReleaseAllResourcesAndCleanup = self.lib.ReleaseAllResourcesAndCleanup
+        self.ReleaseAllResourcesAndCleanup.restype = ctypes.c_int
+        self.ReleaseAllResourcesAndCleanup.argtypes = [
+		]
 
         # set log level
         self.SetLogLevel = self.lib.SetLogLevel
@@ -89,7 +97,22 @@ class InjectorDLL (object):
             ctypes.c_char_p,
             ctypes.c_char_p
         ]
+        
+        # request screenshot
+        self.RequestScreenshotFromProcessWithPid = self.lib.RequestScreenshotFromProcessWithPid
+        self.RequestScreenshotFromProcessWithPid.restype = ctypes.c_int
+        self.RequestScreenshotFromProcessWithPid.argtypes = [
+            ctypes.c_int
+        ]
 
+        # send message to pid
+        self.SendMessageToOverlayWithPid = self.lib.SendMessageToOverlayWithPid
+        self.SendMessageToOverlayWithPid.restype = ctypes.c_int
+        self.SendMessageToOverlayWithPid.argtypes = [
+            ctypes.c_int,
+            ctypes.c_char_p
+        ]
+        
 
 def start_monitor (process_name):
     logging.warning ('For Steam Games ensure that there is steam_appid.txt file in \%SteamFolder\%\\steamapps\\common\\\%GameName\% with correct appid! You can get app_id here https://steamdb.info/search/')
@@ -97,9 +120,14 @@ def start_monitor (process_name):
     res = InjectorDLL.get_instance ().StartMonitor (process_name.encode (), location.encode ())
     if res != CustomExitCodes.STATUS_OK.value:
         raise InjectionError ('start process creation monitoring error please check logs', res)
+    pid = get_pid()
+    return pid
 
-def release_resources ():
-    res = InjectorDLL.get_instance ().ReleaseResources ()
+def release_resources (pid=None):
+    new_pid = pid
+    if pid is None:
+        new_pid = get_pid()
+    res = InjectorDLL.get_instance ().ReleaseResources (new_pid)
     if res != CustomExitCodes.STATUS_OK.value:
         raise InjectionError ('stop monitoring error', res)
 
@@ -125,16 +153,30 @@ def get_pid ():
         raise InjectionError ('Callback has not been called yet', res)
     return pid[0]
 
-def send_message (message):
+def send_message (message, pid=None):
     if not hasattr (send_message, 'message_queue'):
         send_message.message_queue = deque (maxlen = 5)
     send_message.message_queue.append (message)
     acum_message = ''
     for msg in send_message.message_queue:
         acum_message = acum_message + msg + '\n'
-    res = InjectorDLL.get_instance ().SendMessageToOverlay (acum_message.encode ())
+    print("Sending message: \n" + acum_message)
+    if pid is None:
+        res = InjectorDLL.get_instance ().SendMessageToOverlay (acum_message.encode ())
+    else:
+        res = InjectorDLL.get_instance ().SendMessageToOverlay (acum_message.encode (), int(pid))
+        
     if res != CustomExitCodes.STATUS_OK.value:
         raise InjectionError ('failed to send message', res)
+
+def request_screenshot(pid=None):
+    new_pid = pid
+    if pid is None:
+        new_pid = get_pid()
+    res = InjectorDLL.get_instance ().RequestScreenshotFromProcessWithPid (new_pid)
+    
+    if res != CustomExitCodes.STATUS_OK.value:
+        raise InjectionError ('Callback has not been called yet', res)
 
 def write_app_id (file_path, app_id):
     logging.info ('writing %s to %s' % (str (app_id), file_path))
@@ -156,6 +198,7 @@ def run_process (exe_path, exe_args = "", steam_app_id = None):
     res = InjectorDLL.get_instance ().RunProcess (exe_path.encode (), exe_args.encode(), location.encode ())
     if res != CustomExitCodes.STATUS_OK.value:
         raise InjectionError ('failed to run process please check logs', res)
+    return get_pid()
 
 
 class OvelrayLogHandler (logging.Handler):

@@ -25,6 +25,7 @@ public:
 
     int GetCommandFromOverlay(char *retArray) ;
     int SendCommandToOverlay (char *message) ;
+    int RequestScreenshot() ;
 
 private:
     volatile HANDLE thread;

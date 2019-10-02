@@ -39,6 +39,7 @@ Monitor::Monitor ()
 
 Monitor::~Monitor ()
 {
+    Monitor::monitorLogger->error ("Destructor called. grml...");
     this->ReleaseResources ();
 }
 
@@ -121,51 +122,6 @@ HANDLE Monitor::CreateFileMapHelper(std::string name, int pid, int mapsize) {
 
 int Monitor::CreateFileMap (int pid)
 {
-    /*
-    // Create mmp where the overlay text gets written to
-    std::string fileMapName = std::string();
-
-    fileMapName = "Global\\GameOverlayMap";
-    if (pid > 0){
-        fileMapName.append("_") ;
-        fileMapName.append(std::to_string(pid)) ;
-    }
-
-    std::wstring stemp = std::wstring(fileMapName.begin(), fileMapName.end());
-    LPCWSTR sw = stemp.c_str();
-
-    this->mapFile = CreateFileMapping (
-        INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, MMAPSIZE, sw);
-
-    // Create mmap where the screenshot gets saved
-    fileMapName = "Global\\GameOverlayImageMap";
-    if (pid > 0){
-        fileMapName.append("_") ;
-        fileMapName.append(std::to_string(pid)) ;
-    }
-
-    std::wstring stemp = std::wstring(fileMapName.begin(), fileMapName.end());
-    LPCWSTR sw = stemp.c_str();
-
-    this->mapImageFile = CreateFileMapping (
-        INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, MMAPSIZE_SCREENSHOT, sw);
-
-    // Create mmap where the commands are shared
-    fileMapName = "Global\\GameOverlayImageMap";
-    if (pid > 0){
-        fileMapName.append("_") ;
-        fileMapName.append(std::to_string(pid)) ;
-    }
-
-    std::wstring stemp = std::wstring(fileMapName.begin(), fileMapName.end());
-    LPCWSTR sw = stemp.c_str();
-
-    this->mapCommandFile = CreateFileMapping (
-        INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, MMAPSIZE, sw); */
-
-    //*************************
-
-
     this->mapFile = CreateFileMapHelper("Global\\GameOverlayMap", pid, MMAPSIZE) ;
     this->mapImageFile = CreateFileMapHelper("Global\\GameOverlayImageMap", pid, MMAPSIZE_SCREENSHOT) ;
     this->mapCommandFile = CreateFileMapHelper("Global\\GameOverlayCommandMap", pid, MMAPSIZE) ;
@@ -299,6 +255,11 @@ int Monitor::SendCommandToOverlay (char *message)
     CopyMemory ((PVOID)buf, message, (strlen (message) + 1) * sizeof (char));
     UnmapViewOfFile (buf);
     return STATUS_OK;
+}
+
+int Monitor::RequestScreenshot(){
+    char message[64] = "SCREENSHOT" ;
+    return SendCommandToOverlay(message);
 }
 
 int Monitor::GetCommandFromOverlay(char * retArray){
